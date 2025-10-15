@@ -1,0 +1,8 @@
+HD Wallet Key Calculator
+
+Pre-alpha stage code, no testing done at all.
+
+Supports BIP32, BIP39, BIP43, BIP44, BIP49, BIP84
+Usage :
+python hd_wallet_keys.py <mnemonic_sentence> <passphrase> <derivation_path> <testnet_flag>
+
