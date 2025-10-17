@@ -1,6 +1,12 @@
-# Supports BIP32, BIP39, BIP43, BIP44, BIP49, BIP84
+# Conforms to BIP32, BIP39, BIP43, BIP44, BIP49, BIP84
 # Usage :
-# python hd_wallet_keys.py <mnemonic_sentence> <passphrase> <derivation_path> <testnet_flag>
+# python hd_wallet_keys.py -s <mnemonic_sentence> <passphrase> <derivation_path> <testnet_flag>
+# for displaying single key, or
+# python hd_wallet_keys.py -l <mnemonic_sentence> <passphrase> <parent_derivation_path> <starting_child_key_index>
+# <no_of_child_keys> <testnet_flag>
+# for displaying a consecutive list of child keys under a specified parent key, where <starting_child_key_index> 
+# can be a non-hardened or a hardened child index, the latter denoted by a ' suffix.
+#
 # Tested on Python v3.8.10
 
 
@@ -27,7 +33,7 @@ import hashlib
 # These modules are available at :
 # https://github.com/jimmysong/programmingbitcoin/tree/master/code-ch13
 # To use the modules download them to your computer and place them in the current directory or place them 
-# in another directory and set up the PYTHONPATH environment variable accordingly, eg. :
+# in another directory and set up the PYTHONPATH environment variable to point to them, eg. :
 # export PYTHONPATH="/home/username/Jimmy Song/book-code/code-ch13"
 # on Linux (note the double quotes are needed)
 # or
@@ -43,7 +49,7 @@ from helper import encode_base58_checksum
 # https://github.com/sipa/bech32/blob/master/ref/python/segwit_addr.py
 # is required.
 # To use the module download it to your computer and place it in the current directory or place it
-# in another directory and set up the PYTHONPATH environment variable accordingly, eg. :
+# in another directory and set up the PYTHONPATH environment variable to point to it, eg. :
 # export PYTHONPATH="/home/username/bech32"
 # on Linux (note the double quotes are needed)
 # or
@@ -463,9 +469,18 @@ def derive_child_ext_pub_key(parent_pub_key, parent_chain_code, child_index) :
 # Function get_parent_type
 # ------------------------
 #
-# Accepts the list parent_path_components from function derivation_path_ext_key (so all elements in the list beyond the first
-# are child indices in integer form) and determines whether this parent's derivation path conforms with BIP44, BIP49, BIP84, or 
-# none of these. In the latter case the parent derivation path type is classed as 'CUSTOM'.
+# Accepts the list parent_path_components from function derivation_path_ext_key (so the first component is either 'm' 
+# or 'M' and all elements in the list beyond the first are child indices in integer form) and determines whether 
+# this parent's derivation path conforms with BIP44, BIP49, BIP84, or none of these. In the latter case the 
+# parent derivation path type is classed as 'CUSTOM'.
+#
+# The definitions which are used of a parent derivation path conforming with BIP44, BIP49, BIP84 are as follows :-
+# BIP44 derivation path : of form x/44'/coin_type'/account'/change
+# BIP49 derivation path : of form x/49'/coin_type'/account'/change
+# BIP84 derivation path : of form x/84'/coin_type'/account'/change
+# where in each case x is either 'm' or 'M', coin_type' and account' are any valid hardened child indices,
+# and change is a non-hardened child index taking the value 0 or 1.
+# Any other form of derivation path is classed as 'CUSTOM'.
 
 def get_parent_type(parent_path_components) :
 	if len(parent_path_components) != 5) :
@@ -532,7 +547,7 @@ def derivation_path_ext_key(derivation_path) :
 					print("ERROR in function derivation_path_ext_key : hardened child index '{}' is out of range".format(path_components[i]))
 					exit()
 			else :
-				print("ERROR in function derivation_path_ext_key : invalid child index '{}' in HD wallet key path".format(path_components[i]))
+				print("ERROR in function derivation_path_ext_key : invalid child index {} in HD wallet key path".format(path_components[i]))
 				exit()
 
 	depth = no_of_path_components - 1
@@ -605,6 +620,37 @@ def compute_seed(mnemonic_sentence, passphrase='') :
 
 
 
+# Function extract_starting_child_key_index
+# -----------------------------------------
+#
+
+def extract_starting_child_key_index(starting_child_key_index, no_of_child_keys) :
+	if (starting_child_key_index.isdecimal()) :
+		# non-hardened child index
+		starting_child_key_index = int(starting_child_key_index)
+		if not (starting_child_key_index >= FIRST_NON_HARDENED_CHILD_INDEX and starting_child_key_index <= LAST_NON_HARDENED_CHILD_INDEX) :
+			print("ERROR in function derivation_path_ext_key : non-hardened child index '{}' is out of range".format(starting_child_key_index))
+			exit()
+		if starting_child_key_index + no_of_child_keys - 1 > LAST_NON_HARDENED_CHILD_INDEX :
+			print("ERROR in function extract_starting_child_key_index : range of non-hardened child key indices too large")
+			exit()
+	else :
+		match = re.search("(^\d+)'$", starting_child_key_index)
+		if (match) :
+			# hardened child index
+			starting_child_key_index = int(match.group(1)) + FIRST_HARDENED_CHILD_INDEX
+			if not (starting_child_key_index >= FIRST_HARDENED_CHILD_INDEX and starting_child_key_index <= LAST_HARDENED_CHILD_INDEX):
+				print("ERROR in function extract_starting_child_key_index : hardened child index '{}' is out of range".format(path_components[i]))
+				exit()
+			if starting_child_key_index + no_of_child_keys - 1 > LAST_HARDENED_CHILD_INDEX :
+				print("ERROR in function extract_starting_child_key_index : range of hardened child key indices too large")
+				exit()
+		else :
+			print("ERROR in function extract_starting_child_key_index : invalid child index {}".format(starting_child_key_index))
+			exit()
+	return starting_child_key_index
+
+
 
 ########################################################################################################################
 ####################																				####################
@@ -613,10 +659,26 @@ def compute_seed(mnemonic_sentence, passphrase='') :
 ########################################################################################################################
 
 
-mnemonic_sentence = sys.argv[1]
-passphrase = sys.argv[2]
-derivation_path = sys.argv[3]
-testnet_flag = sys.argv[4]
+
+# python hd_wallet_keys.py -s <mnemonic_sentence> <passphrase> <derivation_path> <testnet_flag>
+# python hd_wallet_keys.py -l <mnemonic_sentence> <passphrase> <parent_derivation_path> <starting_key_index>
+# <no_of_keys> <testnet_flag>
+
+single_key_requested = (sys.argv[1] == '-s')
+
+mnemonic_sentence = sys.argv[2]
+passphrase = sys.argv[3]
+
+if single_key_requested :
+	derivation_path = sys.argv[4]
+	testnet_flag = sys.argv[5]
+else
+	parent_derivation_path = sys.argv[4]
+	starting_child_key_index = sys.argv[5]
+	no_of_child_keys = sys.argv[6]
+	# convert starting_child_key_index to integer and check valid range
+	starting_child_key_index = extract_starting_child_key_index(starting_child_key_index, no_of_child_keys)
+	testnet_flag = sys.argv[7]
 
 # set defaults
 if not mnemonic_sentence :
@@ -643,41 +705,54 @@ master_pub_key = priv_to_pub(master_priv_key)
 
 
 
-# Compute the required key. This function will terminate the script with an error if derivation_path 
-# is not a valid form.
-(depth, parent_fingerprint, child_index, chain_code, key, parent_type) = derivation_path_ext_key(derivation_path)
+if single_key_requested :
+	# Compute the required key. This function will terminate the script with an error if derivation_path 
+	# is not a valid form.
+	(depth, parent_fingerprint, child_index, chain_code, key, parent_type) = derivation_path_ext_key(derivation_path)
 
-version_prefix_type = path_type_to_prefix_type(parent_type)
-parent_type_text = path_type_to_parent_type_text(parent_type)
+	version_prefix_type = path_type_to_prefix_type(parent_type)
+	parent_type_text = path_type_to_parent_type_text(parent_type)
+	key_length = len(key)
 
-if (len(key) == 32) :
-	# private key - the same Base58Check encoded WIF private key is provided irrespective of the parent_type
-	# but the Base58Check encoded extended private key provided varies depending on the parent_type
-	print('Private key : {}'.format(priv_to_wif(key, testnet)))
-	print('Detected parent type : {}'.format(parent_type_text))
-	ext_priv_key = base58check_ext_priv_key(depth, parent_fingerprint, child_index, chain_code, key, version_prefix_type, testnet)
-	print('Extended private key : {}'.format(ext_priv_key))
-else :
-	# public key - we provide the address corresponding to the 33 byte long SEC1 compressed public key,
-	# this address being of the appropriate type (ie. P2PKH, P2SH-P2WPKH, or P2WPKH) depending on the parent_type,
-	# and we provide the Base58Check encoded extended public key which also varies depending on the parent_type
+	if (key_length == 32) :
+		# a private key derivation path was supplied by user (ie. commencing 'm'). The same Base58Check encoded WIF private 
+		# key is provided irrespective of the parent_type but the Base58Check encoded extended private key provided 
+		# varies depending on the parent_type via the version_prefix_type
+		priv_key_wif = priv_to_wif(key, testnet)
+		ext_priv_key = base58check_ext_priv_key(depth, parent_fingerprint, child_index, chain_code, key, version_prefix_type, testnet)
+		pub_key = priv_to_pub(key)
+	else :
+		# a public key derivation path was supplied by user (ie. commencing 'M')
+		pub_key = key
+
+	# Whether user supplied a private key derivation path or a public key derivation path we provide the address 
+	# corresponding to the 33 byte long SEC1 compressed public key, this address being of the appropriate type 
+	# (ie. P2PKH, P2SH-P2WPKH, or P2WPKH) depending on the parent_type, and we provide the Base58Check encoded 
+	# extended public key which also varies depending on the parent_type (via the version_prefix_type)
 	if parent_type == Parent_Derivation_Path_Type.CUSTOM :
 		# parent derivation path type is custom type,
 		# so display the Base58Check encoded P2PKH address for the public key
-		print('Address : {}'.format(pub_to_p2pkh_address(key, testnet)))
+		address = pub_to_p2pkh_address(pub_key, testnet)
 	elif parent_type == Parent_Derivation_Path_Type.BIP44 :
-		# parent derivation path type is BIP44 type, ie. M/44'/coin_type'/account'/change,
-		# so display the Base58Check encoded P2PKH address for the public key
-		print('Address : {}'.format(pub_to_p2pkh_address(key, testnet)))
+		# parent derivation path type is BIP44 type, ie. of form x/44'/coin_type'/account'/change,
+		# (where x = 'm' or 'M') so display the Base58Check encoded P2PKH address for the public key
+		address = pub_to_p2pkh_address(pub_key, testnet)
 	elif parent_type == Parent_Derivation_Path_Type.BIP49 :
-		# parent derivation path type is BIP49 type, ie. M/49'/coin_type'/account'/change,
-		# so display the Base58Check encoded P2SH-P2WPKH address for the public key
-		print('Address : {}'.format(pub_to_p2sh_p2wpkh_address(key, testnet)))
+		# parent derivation path type is BIP49 type, ie. x/49'/coin_type'/account'/change,
+		# (where x = 'm' or 'M') so display the Base58Check encoded P2SH-P2WPKH address for the public key
+		address = pub_to_p2sh_p2wpkh_address(pub_key, testnet)
 	elif parent_type == Parent_Derivation_Path_Type.BIP84 :
-		# parent derivation path type is BIP84 type, ie. M/84'/coin_type'/account'/change,
-		# so display the Bech32 encoded P2WPKH address for the public key
-		print('Address : {}'.format(pub_to_p2wpkh_address(key, testnet)))
+		# parent derivation path type is BIP84 type, ie. x/84'/coin_type'/account'/change,
+		# (where x = 'm' or 'M') so display the Bech32 encoded P2WPKH address for the public key
+		address = pub_to_p2wpkh_address(pub_key, testnet)
+	ext_pub_key = base58check_ext_pub_key(depth, parent_fingerprint, child_index, chain_code, pub_key, version_prefix_type, testnet)
+
 	print('Detected parent type : {}'.format(parent_type_text))
-	ext_pub_key = base58check_ext_pub_key(depth, parent_fingerprint, child_index, chain_code, key, version_prefix_type, testnet)
+	if (key_length == 32) :
+		print('Private key : {}'.format(priv_key_wif))
+	print('Address : {}'.format(address))
+	if (key_length == 32) :
+		print('Extended private key : {}'.format(ext_priv_key))
 	print('Extended public key : {}'.format(ext_pub_key))
+else :
 
