@@ -536,7 +536,7 @@ def derivation_path_ext_key(derivation_path) :
 			# non-hardened child index
 			path_components[i] = int(path_components[i])
 			if not (path_components[i] >= FIRST_NON_HARDENED_CHILD_INDEX and path_components[i] <= LAST_NON_HARDENED_CHILD_INDEX) :
-				print("ERROR in function derivation_path_ext_key : non-hardened child index '{}' is out of range".format(path_components[i]))
+				print("ERROR in function derivation_path_ext_key : non-hardened child index {} is out of range".format(path_components[i]))
 				exit()
 		else :
 			match = re.search("(^\d+)'$", path_components[i])
@@ -544,7 +544,7 @@ def derivation_path_ext_key(derivation_path) :
 				# hardened child index
 				path_components[i] = int(match.group(1)) + FIRST_HARDENED_CHILD_INDEX
 				if not (path_components[i] >= FIRST_HARDENED_CHILD_INDEX and path_components[i] <= LAST_HARDENED_CHILD_INDEX) :
-					print("ERROR in function derivation_path_ext_key : hardened child index '{}' is out of range".format(path_components[i]))
+					print("ERROR in function derivation_path_ext_key : hardened child index {}' is out of range".format(path_components[i]) - FIRST_HARDENED_CHILD_INDEX)
 					exit()
 			else :
 				print("ERROR in function derivation_path_ext_key : invalid child index {} in HD wallet key path".format(path_components[i]))
@@ -629,7 +629,7 @@ def extract_starting_child_key_index(starting_child_key_index, no_of_child_keys)
 		# non-hardened child index
 		starting_child_key_index = int(starting_child_key_index)
 		if not (starting_child_key_index >= FIRST_NON_HARDENED_CHILD_INDEX and starting_child_key_index <= LAST_NON_HARDENED_CHILD_INDEX) :
-			print("ERROR in function derivation_path_ext_key : non-hardened child index '{}' is out of range".format(starting_child_key_index))
+			print("ERROR in function extract_starting_child_key_index : non-hardened child index {} is out of range".format(starting_child_key_index))
 			exit()
 		if starting_child_key_index + no_of_child_keys - 1 > LAST_NON_HARDENED_CHILD_INDEX :
 			print("ERROR in function extract_starting_child_key_index : range of non-hardened child key indices too large")
@@ -640,7 +640,7 @@ def extract_starting_child_key_index(starting_child_key_index, no_of_child_keys)
 			# hardened child index
 			starting_child_key_index = int(match.group(1)) + FIRST_HARDENED_CHILD_INDEX
 			if not (starting_child_key_index >= FIRST_HARDENED_CHILD_INDEX and starting_child_key_index <= LAST_HARDENED_CHILD_INDEX):
-				print("ERROR in function extract_starting_child_key_index : hardened child index '{}' is out of range".format(path_components[i]))
+				print("ERROR in function extract_starting_child_key_index : hardened child index {}' is out of range".format(starting_child_key_index - FIRST_HARDENED_CHILD_INDEX)
 				exit()
 			if starting_child_key_index + no_of_child_keys - 1 > LAST_HARDENED_CHILD_INDEX :
 				print("ERROR in function extract_starting_child_key_index : range of hardened child key indices too large")
@@ -676,7 +676,7 @@ else
 	parent_derivation_path = sys.argv[4]
 	starting_child_key_index = sys.argv[5]
 	no_of_child_keys = sys.argv[6]
-	# convert starting_child_key_index to integer and check valid range
+	# convert starting_child_key_index to integer and check if key range is valid
 	starting_child_key_index = extract_starting_child_key_index(starting_child_key_index, no_of_child_keys)
 	testnet_flag = sys.argv[7]
 
@@ -755,4 +755,83 @@ if single_key_requested :
 		print('Extended private key : {}'.format(ext_priv_key))
 	print('Extended public key : {}'.format(ext_pub_key))
 else :
+	# consecutive list of child keys under a specified parent key requested
+
+	last_child_derivation_path = starting_child_key_index + no_of_child_keys - 1
+	derivation_path_width = len(parent_derivation_path + '/' + str(last_child_derivation_path))
+	derivation_path_column_width = derivation_path_width + 12
+
+	# we only make this call to determine the parent_type and whether we are performing private or public key derivation
+	# the parent_type determines the type of the address
+	(depth, parent_fingerprint, child_index, chain_code, key, parent_type) = derivation_path_ext_key(starting_child_key_index)
+	private_key_derivation = (len(key) == 32)
+	if parent_type == Parent_Derivation_Path_Type.CUSTOM :
+		# parent derivation path type is custom type,
+		# so address is of type P2PKH of max length 34 chars
+		address_width = 34
+	elif parent_type == Parent_Derivation_Path_Type.BIP44 :
+		# parent derivation path type is BIP44 type, ie. of form x/44'/coin_type'/account'/change,
+		# so address is of type P2PKH of max length 34 chars
+		address_width = 34
+	elif parent_type == Parent_Derivation_Path_Type.BIP49 :
+		# parent derivation path type is BIP49 type, ie. x/49'/coin_type'/account'/change, (where x = 'm' or 'M')
+		# so address is of type P2SH-P2WPKH of max length 35 chars
+		address_width = 35
+	elif parent_type == Parent_Derivation_Path_Type.BIP84 :
+		# parent derivation path type is BIP84 type, ie. x/84'/coin_type'/account'/change, (where x = 'm' or 'M')
+		# so address is a Bech32 encoded P2WPKH address of length 42 chars
+		address_width = 42
+	# allow additional 10 chars to right as spacing
+	address_column_width = address_width + 10
+
+	if private_key_derivation :
+		private_key_width = 52
+		print('{:{}}{:{}}{}'.format('Derivation Path', derivation_path_column_width, 'Address', address_column_width, 'Private Key'))
+		print('{:{}}{:{}}{}'.format('-'*derivation_path_width, derivation_path_column_width, '-'*address_width, address_column_width, '-'*private_key_width))
+		for i in range(starting_child_key_index, starting_child_key_index + no_of_child_keys) :
+			derivation_path = parent_derivation_path + '/' + str(i)
+			(depth, parent_fingerprint, child_index, chain_code, priv_key, parent_type) = derivation_path_ext_key(derivation_path)
+			priv_key_wif = priv_to_wif(priv_key, testnet)
+			pub_key = priv_to_pub(priv_key)
+			if parent_type == Parent_Derivation_Path_Type.CUSTOM :
+				# parent derivation path type is custom type,
+				# so display the Base58Check encoded P2PKH address for the public key
+				address = pub_to_p2pkh_address(pub_key, testnet)
+			elif parent_type == Parent_Derivation_Path_Type.BIP44 :
+				# parent derivation path type is BIP44 type, ie. of form x/44'/coin_type'/account'/change,
+				# (where x = 'm' or 'M') so display the Base58Check encoded P2PKH address for the public key
+				address = pub_to_p2pkh_address(pub_key, testnet)
+			elif parent_type == Parent_Derivation_Path_Type.BIP49 :
+				# parent derivation path type is BIP49 type, ie. x/49'/coin_type'/account'/change,
+				# (where x = 'm' or 'M') so display the Base58Check encoded P2SH-P2WPKH address for the public key
+				address = pub_to_p2sh_p2wpkh_address(pub_key, testnet)
+			elif parent_type == Parent_Derivation_Path_Type.BIP84 :
+				# parent derivation path type is BIP84 type, ie. x/84'/coin_type'/account'/change,
+				# (where x = 'm' or 'M') so display the Bech32 encoded P2WPKH address for the public key
+				address = pub_to_p2wpkh_address(pub_key, testnet)
+			print('{:{}}{:{}}{}'.format(derivation_path, derivation_path_column_width, address, address_column_width, priv_key_wif))
+	else :
+		print('{:{}}{:{}}'.format('Derivation Path', derivation_path_column_width, 'Address', address_column_width))
+		print('{:{}}{:{}}'.format('-'*derivation_path_width, derivation_path_column_width, '-'*address_width, address_column_width))
+		for i in range(starting_child_key_index, starting_child_key_index + no_of_child_keys) :
+			derivation_path = parent_derivation_path + '/' + str(i)
+			# from this call we only need the pub_key and the parent_type
+			(depth, parent_fingerprint, child_index, chain_code, pub_key, parent_type) = derivation_path_ext_key(derivation_path)
+			if parent_type == Parent_Derivation_Path_Type.CUSTOM :
+				# parent derivation path type is custom type,
+				# so display the Base58Check encoded P2PKH address for the public key
+				address = pub_to_p2pkh_address(pub_key, testnet)
+			elif parent_type == Parent_Derivation_Path_Type.BIP44 :
+				# parent derivation path type is BIP44 type, ie. of form x/44'/coin_type'/account'/change,
+				# (where x = 'm' or 'M') so display the Base58Check encoded P2PKH address for the public key
+				address = pub_to_p2pkh_address(pub_key, testnet)
+			elif parent_type == Parent_Derivation_Path_Type.BIP49 :
+				# parent derivation path type is BIP49 type, ie. x/49'/coin_type'/account'/change,
+				# (where x = 'm' or 'M') so display the Base58Check encoded P2SH-P2WPKH address for the public key
+				address = pub_to_p2sh_p2wpkh_address(pub_key, testnet)
+			elif parent_type == Parent_Derivation_Path_Type.BIP84 :
+				# parent derivation path type is BIP84 type, ie. x/84'/coin_type'/account'/change,
+				# (where x = 'm' or 'M') so display the Bech32 encoded P2WPKH address for the public key
+				address = pub_to_p2wpkh_address(pub_key, testnet)
+			print('{:{}}{:{}}'.format(derivation_path, derivation_path_column_width, address, address_column_width))
 

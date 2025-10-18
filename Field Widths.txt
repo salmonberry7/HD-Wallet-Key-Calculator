@@ -1,0 +1,49 @@
+WIF compressed private key
+--------------------------
+
+Mainnet :
+Begins with 'K' or 'L' and is 52 Base58 characters long.
+
+Testnet :
+Begins with 'c' and is 52 Base58 characters long.
+
+
+P2PKH address
+-------------
+
+Mainnet :
+Starts with a '1' and is max 34 Base58 characters long
+
+Testnet :
+Starts with an 'm' or 'n' and is 34 Base58 characters long
+
+
+P2SH-P2WPKH address
+-------------------
+
+Mainnet :
+Starts with a '3' and is 34 bytes long
+
+Testnet :
+Starts with a '2' and is 35 bytes long
+
+
+P2WPKH address
+--------------
+
+Mainnet :
+Starts with 'bc1q' and is 42 chars long
+
+Testnet :
+Starts with 'tb1q' and is 42 chars long
+
+
+
+
+Derivation Path            Address                                     Private Key
+
+m/44'/0'/0'/0/0            131NUR851dYgQ4rL9RZVnR1AhPMz5QGudM          L4xjLXZUnYPTmRVHBrHbsV9RVvwFVyYSTFWpjeLpTfEohkcHGFB4
+
+
+
+
